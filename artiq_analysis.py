@@ -2,7 +2,7 @@ import os
 import sys
 import svgwrite
 
-rootpath = "YOUR ARTIQ ROOT\artiq\\gateware\\"
+rootpath = "YOUR ARTIQ ROOT PATH\\artiq\\gateware\\"
 class SvgTextLine():
     def __init__(self, height, length):
         self.idx = 0
@@ -17,17 +17,17 @@ class ArtiqObjectProperties():
         self.inherit = []
         self.content = []
     
-    def svgdrawobject(self, stl, dwg, endofclass=False):
+    def svgdrawobject(self, stl, dwg, dwgg, endofclass=False):
         stl.idx = stl.idx + 1
-        dwg.add(dwg.text(self.name, insert=(10, stl.idx*stl.height), fill=svgwrite.rgb(0, 128, 128, 'RGB')))
+        dwgg.add(dwg.text(self.name, insert=(10, stl.idx*stl.height), fill=svgwrite.rgb(0, 128, 128, 'RGB')))
         for inherititems in self.inherit:
             stl.idx = stl.idx + 1
-            dwg.add(dwg.text(inherititems, insert=(10, stl.idx*stl.height), fill=svgwrite.rgb(128, 128, 128, 'RGB')))
+            dwgg.add(dwg.text(inherititems, insert=(10, stl.idx*stl.height), fill=svgwrite.rgb(128, 128, 128, 'RGB')))
         for contentitems in self.content:
             stl.idx = stl.idx + 1
-            dwg.add(dwg.text(contentitems, insert=(10, stl.idx*stl.height)))
+            dwgg.add(dwg.text(contentitems, insert=(10, stl.idx*stl.height)))
         if not endofclass:
-            dwg.add(dwg.line((0, stl.idx*stl.height + 4), (stl.length, stl.idx*stl.height + 4), stroke=svgwrite.rgb(0, 0, 0, '%')))
+            dwgg.add(dwg.line((0, stl.idx*stl.height + 4), (stl.length, stl.idx*stl.height + 4), stroke=svgwrite.rgb(0, 0, 0, '%')))
         
 
 class ArtiqClass():
@@ -106,6 +106,7 @@ class ImportFileObject():
 
 def main():
     filenamepath = sys.argv[1]
+    filenamepath = filenamepath.replace("/","\\")
     print(filenamepath)
     currentobjectlist = filepathname2objectlist(filenamepath)
     if isinstance(currentobjectlist,bool):
@@ -127,7 +128,8 @@ def main():
                 existedimportedobject = False
                 for ipob in importedobject:
                     if len(set(ipob) & set(ifo.objectlist)) == len(ifo.objectlist):
-                        existedimportedobject = True
+                        if len(set(ipob) & set(ifo.objectlist)) == len(ipob):
+                            existedimportedobject = True
                 if existedimportedobject:
                     continue
                 importedobject.append(ifo.objectlist)
@@ -220,7 +222,7 @@ def main():
                 for inh in inherit:
                     classes[-1].inheritance.content.append(inh.strip())
                     for cl in classes:
-                        if cl.name == inh:
+                        if cl.name == inh.strip():
                             classes[-1].submodules.inherit.extend(cl.submodules.inherit)
                             classes[-1].signals.inherit.extend(cl.signals.inherit)
                             classes[-1].clockdomains.inherit.extend(cl.clockdomains.inherit)
@@ -231,6 +233,7 @@ def main():
                             classes[-1].clockdomains.inherit.extend(cl.clockdomains.content)
                             classes[-1].objects.inherit.extend(cl.objects.content)
                             classes[-1].functions.inherit.extend(cl.functions.content)
+                            break
 
         if fl.startswith("    def"):
             functionnamestart = fl.find("d")
@@ -273,26 +276,33 @@ def main():
 
     stl = SvgTextLine(16, 200)
     dwg = svgwrite.Drawing( filename+'.svg', profile='tiny')
+    clg = dwg.g(id = "classdirectory")
+    importedclasses = []
+    for cl in classes:
+        importedclasses = []
+        importedclasses.extend(cl.hierarchy)
+        importedclasses.append(cl.name)
+        print(".".join(importedclasses))
+        clg.add(dwg.text(importedclasses, insert=(-400, stl.idx*stl.height), fill=svgwrite.rgb(0, 0, 0, 'RGB')))
+        stl.idx = stl.idx + 1
+    dwg.add(clg)
+
+    stl.idx = 0
     for cl in classes:
         stl.idx = stl.idx + 3
         stl.rectstartidx = stl.idx - 1
-        dwg.add(dwg.text(".".join(cl.hierarchy)+"."+cl.name, insert=(10, stl.idx*stl.height), fill=svgwrite.rgb(0, 64, 64, 'RGB')))
-        dwg.add(dwg.line((0, stl.idx*stl.height + 4), (stl.length, stl.idx*stl.height + 4), stroke=svgwrite.rgb(0, 0, 0, 'RGB')))
-        cl.inheritance.svgdrawobject(stl, dwg)
-        cl.functions.svgdrawobject(stl, dwg)
-        cl.signals.svgdrawobject(stl, dwg)
-        cl.clockdomains.svgdrawobject(stl, dwg)
-        cl.submodules.svgdrawobject(stl, dwg, True)
-        dwg.add(dwg.rect(insert=(0,stl.rectstartidx*stl.height),size=(stl.length,stl.height*(stl.idx - stl.rectstartidx + 1)),fill="none", stroke=svgwrite.rgb(0, 0, 0, 'RGB'), stroke_width=1))
+        clg = dwg.g(id = cl.name)
+        clg.add(dwg.text(".".join(cl.hierarchy)+"."+cl.name, insert=(10, stl.idx*stl.height), fill=svgwrite.rgb(0, 64, 64, 'RGB')))
+        clg.add(dwg.line((0, stl.idx*stl.height + 4), (stl.length, stl.idx*stl.height + 4), stroke=svgwrite.rgb(0, 0, 0, 'RGB')))
+        cl.inheritance.svgdrawobject(stl, dwg, clg)
+        cl.functions.svgdrawobject(stl, dwg, clg)
+        cl.signals.svgdrawobject(stl, dwg, clg)
+        cl.clockdomains.svgdrawobject(stl, dwg, clg)
+        cl.submodules.svgdrawobject(stl, dwg, clg, True)
+        clg.add(dwg.rect(insert=(0,stl.rectstartidx*stl.height),size=(stl.length,stl.height*(stl.idx - stl.rectstartidx + 1)),fill="none", stroke=svgwrite.rgb(0, 0, 0, 'RGB'), stroke_width=1))
+        dwg.add(clg)
     dwg.save()
     
-    importedclasses = []
-    for cl in classes:
-        importedclasses.append([cl.hierarchy, cl.name])
-
-    importedclasses.sort()
-    for imcl in importedclasses:
-        print(imcl)
 
 if __name__ == "__main__":
     main()
